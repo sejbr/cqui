@@ -540,6 +540,9 @@
     <Row Tag="LOC_CQUI_GENERAL_HIDDEN" Language="pl_PL">
       <Text>Ukryte</Text>
     </Row>
+    <Row Tag="LOC_CQUI_GENERAL_MINIMAPSIZE" Language="pl_PL">
+      <Text>Rozmiar Minimapy</Text>
+    </Row>
     <Row Tag="LOC_CQUI_GENERAL_RESOURCEDIMMINGSTYLE" Language="pl_PL">
       <Text>Styl ikon ulepszonych zasobów</Text>
     </Row>
@@ -581,6 +584,9 @@
     </Row>
     <Row Tag="LOC_CQUI_POPUPS" Language="pl_PL">
       <Text>Popup'y</Text>
+    </Row>
+    <Row Tag="LOC_CQUI_POPUPS_ALWAYSOPENTECHTREES" Language="pl_PL">
+      <Text>Zawsze otwieraj pełne drzewo zamiast popup'u</Text>
     </Row>
     <Row Tag="LOC_CQUI_POPUPS_TECHVISUAL" Language="pl_PL">
       <Text>Popup zakończenia Badania/Kodeksu</Text>
