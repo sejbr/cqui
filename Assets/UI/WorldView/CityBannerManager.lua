@@ -10,7 +10,6 @@ include( "Civ6Common" );
 --  CONSTANTS
 -- ===========================================================================
 
-local CQUI_CITIZEN_BUTTON_HEIGHT   :number = 64;
 local ANIM_SPEED_RELIGION_CHANGE      :number = 1;
 local COLOR_CITY_GREEN            :number = 0xFF4CE710;
 local COLOR_CITY_RED            :number = 0xFF0101F5;
@@ -34,11 +33,11 @@ local PLOT_VISIBLE        :number = 2;
 local PRESSURE_THRESHOLD_HIGH :number = 400;
 local PRESSURE_THRESHOLD_MEDIUM :number = 200;
 local PADDING_FOLLOWERS_BG    :number = 0;
-local RELIGION_PRESSURE     :table = { 
-  NONE  = 0, 
-  LOW   = 1, 
-  MEDIUM  = 2, 
-  HIGH  = 3 
+local RELIGION_PRESSURE     :table = {
+  NONE  = 0,
+  LOW   = 1,
+  MEDIUM  = 2,
+  HIGH  = 3
 };
 local SIZE_HOLY_SITE_ICON   :number = 22;
 local SIZE_RELIGION_ICON_LARGE  :number = 100;
@@ -91,7 +90,7 @@ hstructure CityBanner
 
   m_InstanceManager       : table;              -- The instance manager that made the control set.
     m_Instance            : table;              -- The instanced control set.
-    
+
     m_Type              : number;             -- Full, mini, etc...
   m_Style             : number;             -- Team or other
     m_IsSelected          : boolean;
@@ -100,12 +99,12 @@ hstructure CityBanner
     m_IsDimmed            : boolean;
   m_OverrideDim         : boolean;
   m_FogState            : number;
-    
+
     m_Player            : table;
     m_CityID            : number;   -- The city ID.  Keeping just the ID, rather than a reference because there will be times when we need the value, but the city instance will not exist.
   m_DistrictID          : number;   -- The district ID.
   m_PlotX             : number;   -- the X and Y location of the plot associated with the banner. We need this in cases where we need a banner not associated with a district (ex. Airstrip Improvement)
-  m_PlotY             : number; 
+  m_PlotY             : number;
   m_IsImprovementBanner     : boolean;
   m_eMajorityReligion       : number;
 end
@@ -121,6 +120,7 @@ local CQUI_ShowYieldsOnCityHover = false;
 local CQUI_PlotIM        :table = InstanceManager:new( "CQUI_WorkedPlotInstance", "Anchor", Controls.CQUI_WorkedPlotContainer );
 local CQUI_uiWorldMap    :table = {};
 local CQUI_yieldsOn    :boolean = false;
+local CQUI_Hovering :boolean = false;
 
 
 local m_CityCenterTeamIM  :table  = InstanceManager:new( "TeamCityBanner",  "Anchor", Controls.CityBanners );
@@ -131,7 +131,7 @@ local m_WMDBannerIM     :table  = InstanceManager:new( "WMDBanner",     "Anchor"
 local m_EncampmentBannerIM  :table  = InstanceManager:new( "EncampmentBanner",  "Anchor", Controls.CityBanners );
 
 
--- Create one instance of the meta object as a global variable with the same name as the data structure portion.  
+-- Create one instance of the meta object as a global variable with the same name as the data structure portion.
 -- This allows us to do a CityBanner:new, so the naming looks consistent.
 CityBanner = hmake CityBannerMeta {};
 
@@ -161,10 +161,26 @@ local SIZEOFPOPANDPRODMETERS    :number = 15; --The amount to add to the city ba
 --  QUI
 -- ===========================================================================
 
+local CQUI_WorkIconSize: number = 48;
+local CQUI_WorkIconAlpha = .60;
+local CQUI_SmartWorkIcon: boolean = true;
+local CQUI_SmartWorkIconSize: number = 64;
+local CQUI_SmartWorkIconAlpha = .45;
+
 local g_smartbanner = true;
 function CQUI_OnSettingsUpdate()
   CQUI_ShowYieldsOnCityHover = GameConfiguration.GetValue("CQUI_ShowYieldsOnCityHover");
-  g_smartbanner = GameConfiguration.GetValue("CQUI_Smartbanner")
+  g_smartbanner = GameConfiguration.GetValue("CQUI_Smartbanner");
+  g_smartbanner_unmanaged_citizen = GameConfiguration.GetValue("CQUI_Smartbanner_UnlockedCitizen");
+  g_smartbanner_districts = GameConfiguration.GetValue("CQUI_Smartbanner_Districts");
+  g_smartbanner_population = GameConfiguration.GetValue("CQUI_Smartbanner_Population");
+  g_smartbanner_cultural = GameConfiguration.GetValue("CQUI_Smartbanner_Cultural");
+
+  CQUI_WorkIconSize = GameConfiguration.GetValue("CQUI_WorkIconSize");
+  CQUI_WorkIconAlpha = GameConfiguration.GetValue("CQUI_WorkIconAlpha") / 100;
+  CQUI_SmartWorkIcon = GameConfiguration.GetValue("CQUI_SmartWorkIcon");
+  CQUI_SmartWorkIconSize = GameConfiguration.GetValue("CQUI_SmartWorkIconSize");
+  CQUI_SmartWorkIconAlpha = GameConfiguration.GetValue("CQUI_SmartWorkIconAlpha") / 100;
   Reload();
 end
 LuaEvents.CQUI_SettingsUpdate.Add( CQUI_OnSettingsUpdate );
@@ -175,7 +191,7 @@ LuaEvents.CQUI_SettingsUpdate.Add( CQUI_OnSettingsUpdate );
 
 
 -- ===========================================================================
---  Each city has a component ID that is internally 64-bits. 
+--  Each city has a component ID that is internally 64-bits.
 --  The cityID is the lower 32-bits and will likely be the same across players
 --  so both the playerID and cityID need to be used together in order to
 --  obtain the proper city.
@@ -187,10 +203,10 @@ function GetCityBanner( playerID:number, cityID:number )
   return CityBannerInstances[playerID][cityID];
 end
 -- ===========================================================================
-function GetMiniBanner( playerID:number, districtID:number )  
+function GetMiniBanner( playerID:number, districtID:number )
   if (MiniBannerInstances[playerID] == nil) then
     return;
-  end 
+  end
   return MiniBannerInstances[playerID][districtID];
 end
 
@@ -216,14 +232,14 @@ function CityBanner.new( self : CityBannerMeta, playerID: number, cityID : numbe
     end
     MiniBannerInstances[playerID][districtID] = o;
   end
-  
+
 end
 
 -- ===========================================================================
 function CityBanner.destroy( self : CityBanner )
-    if ( self.m_InstanceManager ~= nil ) then           
+    if ( self.m_InstanceManager ~= nil ) then
         self:UpdateSelected( false );
-                                
+
     if (self.m_Instance ~= nil) then
       self.m_InstanceManager:ReleaseInstance( self.m_Instance );
     end
@@ -236,6 +252,8 @@ function CQUI_OnBannerMouseOver(playerID: number, cityID: number)
 
   if(CQUI_ShowYieldsOnCityHover) then
 
+    CQUI_Hovering = true;
+
     local kPlayer = Players[playerID];
     local kCities = kPlayer:GetCities();
     local kCity = kCities:FindID(cityID);
@@ -245,7 +263,7 @@ function CQUI_OnBannerMouseOver(playerID: number, cityID: number)
     tParameters[CityCommandTypes.PARAM_PLOT_PURCHASE] = UI.GetInterfaceModeParameter(CityCommandTypes.PARAM_PLOT_PURCHASE);
 
     local tResults  :table = CityManager.GetCommandTargets( kCity, CityCommandTypes.MANAGE, tParameters );
-   
+
     if tResults == nil then
       -- Add error message here
       return;
@@ -278,9 +296,14 @@ function CQUI_OnBannerMouseOver(playerID: number, cityID: number)
         -- If this plot is getting worked
         if workerCount > 0 and kPlot:IsCity() == false then
           pInstance.CitizenButton:SetHide(false);
-          pInstance.CitizenButton:SetTextureOffsetVal(0, CQUI_CITIZEN_BUTTON_HEIGHT*4);
-          pInstance.CitizenButton:SetSizeVal(64,64);
-          pInstance.CitizenButton:SetAlpha(.45);
+          pInstance.CitizenButton:SetTextureOffsetVal(0, 256);
+          if(CQUI_SmartWorkIcon) then
+            pInstance.CitizenButton:SetSizeVal(CQUI_SmartWorkIconSize, CQUI_SmartWorkIconSize);
+            pInstance.CitizenButton:SetAlpha(CQUI_SmartWorkIconAlpha);
+          else
+            pInstance.CitizenButton:SetSizeVal(CQUI_WorkIconSize, CQUI_WorkIconSize);
+            pInstance.CitizenButton:SetAlpha(CQUI_WorkIconAlpha);
+          end
         end
 
         if(tLockedUnits[i] > 0) then
@@ -301,7 +324,7 @@ function CQUI_OnBannerMouseOver(playerID: number, cityID: number)
 
     if (tPlots ~= nil and table.count(tPlots) ~= 0) and UILens.IsLayerOn(LensLayers.CITIZEN_MANAGEMENT) == false then
 
-      --UILens.ToggleLayerOn( LensLayers.PURCHASE_PLOT ); 
+      --UILens.ToggleLayerOn( LensLayers.PURCHASE_PLOT );
 
       for i,plotId in pairs(tPlots) do
         local kPlot :table = Map.GetPlotByIndex(plotId);
@@ -333,7 +356,7 @@ function CQUI_OnBannerMouseOver(playerID: number, cityID: number)
 
       if (CQUI_yieldsOn == false and not UILens.IsLayerOn(LensLayers.CITIZEN_MANAGEMENT)) then
         UILens.SetLayerHexesArea(LensLayers.CITY_YIELDS, Game.GetLocalPlayer(), yields);
-        UILens.ToggleLayerOn( LensLayers.CITY_YIELDS );   
+        UILens.ToggleLayerOn( LensLayers.CITY_YIELDS );
       end
 
     end
@@ -344,7 +367,9 @@ end
 -- CQUI -- When a banner is moused over, and the mouse leaves the banner, remove display of the relevant yields and next culture plot
 function CQUI_OnBannerMouseExit(playerID: number, cityID: number)
 
-  CQUI_yieldsOn = UserConfiguration.ShowMapYield();  
+  if(not CQUI_Hovering) then return; end
+
+  CQUI_yieldsOn = UserConfiguration.ShowMapYield();
 
   if (CQUI_yieldsOn == false and not UILens.IsLayerOn(LensLayers.CITIZEN_MANAGEMENT)) then
     UILens.ClearLayerHexes( LensLayers.CITY_YIELDS );
@@ -359,7 +384,7 @@ function CQUI_OnBannerMouseExit(playerID: number, cityID: number)
   tParameters[CityCommandTypes.PARAM_PLOT_PURCHASE] = UI.GetInterfaceModeParameter(CityCommandTypes.PARAM_PLOT_PURCHASE);
 
   local tResults  :table = CityManager.GetCommandTargets( kCity, CityCommandTypes.MANAGE, tParameters );
- 
+
   if tResults == nil then
     -- Add error message here
     return;
@@ -530,7 +555,7 @@ end
 -- ===========================================================================
 function CityBanner.UpdateAerodromeBanner( self : CityBanner )
   self.m_Instance.UnitListPopup:ClearEntries();
-  
+
   local iAirCapacity = 0;
   local iAirUnitCount = 0;
 
@@ -623,7 +648,7 @@ function CityBanner.UpdateAerodromeBanner( self : CityBanner )
       scrollPanel:SetOffsetX(7);
     end
   end
-    
+
   self.m_Instance.UnitListPopup:ReprocessAnchoring();
   self.m_Instance.UnitListPopup:GetGrid():ReprocessAnchoring();
 end
@@ -664,7 +689,7 @@ end
 
 -- ===========================================================================
 function CityBanner.UpdateWMDBanner( self : CityBanner )
-  
+
   local pCity:table = self:GetCity();
 
   -- Don't show the mini banner if this silo doesn't belong to the local player
@@ -679,7 +704,7 @@ function CityBanner.UpdateWMDBanner( self : CityBanner )
   for entry in GameInfo.WMDs() do
     if (entry.WeaponType == "WMD_NUCLEAR_DEVICE") then
       local count = playerWMDs:GetWeaponCount(entry.Index);
-      if (count > 0) then 
+      if (count > 0) then
         -- Player has nukes
         self.m_Instance.NukeCountLabel:SetText(count);
         self.m_Instance.NukeBombButtonBackground:SetHide(false);
@@ -787,7 +812,7 @@ function CityBanner.UpdateEncampmentBanner( self : CityBanner )
   local currentDistrictDamage :number = pDistrict:GetDamage(DefenseTypes.DISTRICT_GARRISON);
   local wallHitpoints     :number = pDistrict:GetMaxDamage(DefenseTypes.DISTRICT_OUTER);
   local currentWallDamage   :number = pDistrict:GetDamage(DefenseTypes.DISTRICT_OUTER);
-  local healthTooltip :string = Locale.Lookup("LOC_CITY_BANNER_DISTRICT_HITPOINTS", ((districtHitpoints-currentDistrictDamage) .. "/" .. districtHitpoints)); 
+  local healthTooltip :string = Locale.Lookup("LOC_CITY_BANNER_DISTRICT_HITPOINTS", ((districtHitpoints-currentDistrictDamage) .. "/" .. districtHitpoints));
   local defTooltip = Locale.Lookup("LOC_CITY_BANNER_DISTRICT_DEFENSE_STRENGTH", districtDefense);
 
   if (wallHitpoints > 0) then
@@ -803,7 +828,7 @@ function CityBanner.UpdateEncampmentBanner( self : CityBanner )
     self.m_Instance.CityHealthBar:SetHide(true);
   else
     self.m_Instance.CityHealthBar:SetHide(false);
-    self.m_Instance.CityHealthBar:SetPercent((districtHitpoints-currentDistrictDamage) / districtHitpoints);  
+    self.m_Instance.CityHealthBar:SetPercent((districtHitpoints-currentDistrictDamage) / districtHitpoints);
   end
 
   self.m_Instance.EncampmentBannerContainer:SetToolTipString(healthTooltip);
@@ -865,7 +890,7 @@ function CityBanner.Resize( self : CityBanner )
       self.m_Instance.CityBannerFill:SetSizeX(newBannerSize);
       self.m_Instance.CityBannerFillOver:SetSizeX(newBannerSize);
       self.m_Instance.CityBannerFillOut:SetSizeX(newBannerSize);
-      
+
       self.m_Instance.CityNameStack:CalculateSize();
       self.m_Instance.CityNameStack:ReprocessAnchoring();
 
@@ -944,17 +969,17 @@ function CityBanner.SetHealthBarColor( self : CityBanner )
   elseif ( percent > .4) then
     self.m_Instance.CityHealthBar:SetColor( COLOR_CITY_YELLOW );
   elseif ( percent < .4) then
-    self.m_Instance.CityHealthBar:SetColor( COLOR_CITY_RED ); 
+    self.m_Instance.CityHealthBar:SetColor( COLOR_CITY_RED );
   end
 end
 
 -- ===========================================================================
-function CityBanner.UpdateStats( self : CityBanner) 
+function CityBanner.UpdateStats( self : CityBanner)
   self:UpdateName();
   local pDistrict:table = self:GetDistrict();
   local localPlayerID:number = Game.GetLocalPlayer();
   if (pDistrict ~= nil) then
-    
+
     local districtHitpoints   :number = pDistrict:GetMaxDamage(DefenseTypes.DISTRICT_GARRISON);
     local currentDistrictDamage :number = pDistrict:GetDamage(DefenseTypes.DISTRICT_GARRISON);
     local wallHitpoints     :number = pDistrict:GetMaxDamage(DefenseTypes.DISTRICT_OUTER);
@@ -977,28 +1002,53 @@ function CityBanner.UpdateStats( self : CityBanner)
         turnsUntilGrowth = pCityGrowth:GetTurnsUntilGrowth();
       elseif isStarving then
         turnsUntilGrowth = -pCityGrowth:GetTurnsUntilStarvation();  -- Make negative
-      end 
-      --- POPULATION AND GROWTH INFO ---
-      local popTooltip :string = Locale.Lookup("LOC_CITY_BANNER_POPULATION") .. ": " .. currentPopulation;
-      if turnsUntilGrowth > 0 then
-        popTooltip = popTooltip .. "[NEWLINE]  " .. Locale.Lookup("LOC_CITY_BANNER_TURNS_GROWTH", turnsUntilGrowth);
-        popTooltip = popTooltip .. "[NEWLINE]  " .. Locale.Lookup("LOC_CITY_BANNER_FOOD_SURPLUS", round(foodSurplus,1));        
-        self.m_Instance.CityPopTurnsLeft:SetColorByName("StatGoodCS");
-      elseif turnsUntilGrowth < 0 then
-        popTooltip = popTooltip .. "[NEWLINE]  " .. Locale.Lookup("LOC_CITY_BANNER_TURNS_STARVATION", -turnsUntilGrowth);
-        self.m_Instance.CityPopTurnsLeft:SetColorByName("StatBadCS");
-      else
-        self.m_Instance.CityPopTurnsLeft:SetColorByName("StatNormalCS");
       end
+      --- POPULATION AND GROWTH INFO ---
       self.m_Instance.CityPopulation:SetText(currentPopulation);
+      if (self.m_Player == Players[localPlayerID]) then --Only show growth data if the player is you
+        local popTooltip :string = Locale.Lookup("LOC_CITY_BANNER_POPULATION") .. ": " .. currentPopulation;
+        local popTurnLeftColor = "";
+        if turnsUntilGrowth > 0 then
+          popTooltip = popTooltip .. "[NEWLINE]  " .. Locale.Lookup("LOC_CITY_BANNER_TURNS_GROWTH", turnsUntilGrowth);
+          popTooltip = popTooltip .. "[NEWLINE]  " .. Locale.Lookup("LOC_CITY_BANNER_FOOD_SURPLUS", round(foodSurplus,1));
+          popTurnLeftColor = "StatGoodCS";
+        elseif turnsUntilGrowth < 0 then
+          popTooltip = popTooltip .. "[NEWLINE]  " .. Locale.Lookup("LOC_CITY_BANNER_TURNS_STARVATION", -turnsUntilGrowth);
+          popTurnLeftColor = "StatBadCS";
+        else
+          popTurnLeftColor = "StatNormalCS";
+        end
 
-      if (self.m_Player == Players[localPlayerID]) then     --Only show growth data if the player is you
-        self.m_Instance.CityPopulation:SetToolTipString(popTooltip);
-        local turnsUntilBorderGrowth = pCityCulture:GetTurnsUntilExpansion();
-        local housing = pCityGrowth:GetHousing();
-        local CTLS = turnsUntilGrowth.."  ["..currentPopulation.."/"..housing..
-          "]  "..turnsUntilBorderGrowth;
-        self.m_Instance.CityPopTurnsLeft:SetText(CTLS);
+        if g_smartbanner and g_smartbanner_cultural then
+          local turnsUntilBorderGrowth = pCityCulture:GetTurnsUntilExpansion();
+          self.m_Instance.CityCultureTurnsLeft:SetText(turnsUntilBorderGrowth);
+          self.m_Instance.CityCultureTurnsLeft:SetHide(false);
+        else
+          self.m_Instance.CityCultureTurnsLeft:SetHide(true);
+        end
+
+        if g_smartbanner and g_smartbanner_population then
+          self.m_Instance.CityPopulation:SetToolTipString(popTooltip);
+          local housingLeft = pCityGrowth:GetHousing() - currentPopulation;
+          local housingLeftText = housingLeft;
+          local housingLeftColor = "Error";
+          if housingLeft > 1 then
+            housingLeftColor = "StatGoodCS";
+            housingLeftText = "+"..housingLeft;
+            --COLOR: Green
+          elseif housingLeft == 1 then
+            housingLeftColor = "WarningMinor";
+            housingLeftText = "+"..housingLeft;
+            --COLOR: Yellow
+          elseif housingLeft <= 0 and housingLeft >= -4 then
+            housingLeftColor = "WarningMajor";
+          end
+          local CTLS = "[COLOR:"..popTurnLeftColor.."]"..turnsUntilGrowth.."[ENDCOLOR]  [[COLOR:"..housingLeftColor.."]"..housingLeftText.."[ENDCOLOR]]  ";
+          self.m_Instance.CityPopTurnsLeft:SetText(CTLS);
+          self.m_Instance.CityPopTurnsLeft:SetHide(false);
+        else
+          self.m_Instance.CityPopTurnsLeft:SetHide(true);
+        end
       end
 
       local food             :number = pCityGrowth:GetFood();
@@ -1057,7 +1107,7 @@ function CityBanner.UpdateStats( self : CityBanner)
             progress = pBuildQueue:GetUnitProgress(pUnitDef.Index);
 
             if (eMilitaryFormationType == MilitaryFormationTypes.STANDARD_FORMATION) then
-              pct = progress / pBuildQueue:GetUnitCost(pUnitDef.Index); 
+              pct = progress / pBuildQueue:GetUnitCost(pUnitDef.Index);
             elseif (eMilitaryFormationType == MilitaryFormationTypes.CORPS_FORMATION) then
               pct = progress / pBuildQueue:GetUnitCorpsCost(pUnitDef.Index);
               if (pUnitDef.Domain == "DOMAIN_SEA") then
@@ -1114,7 +1164,7 @@ function CityBanner.UpdateStats( self : CityBanner)
             self.m_Instance.ProductionIndicator:SetHide(false);
             self.m_Instance.CityProductionProgress:SetHide(false);
             self.m_Instance.CityProduction:SetColor(0x00FFFFFF);
-            
+
             if(prodTypeName ~= nil) then
               self.m_Instance.CityProductionIcon:SetHide(false);
               self.m_Instance.CityProductionIcon:SetIcon("ICON_"..prodTypeName);
@@ -1128,7 +1178,7 @@ function CityBanner.UpdateStats( self : CityBanner)
             self.m_Instance.CityProductionProgress:SetHide(true);
             self.m_Instance.CityProdTurnsLeft:SetText("");
           end
-        
+
         end
       end
 
@@ -1155,12 +1205,12 @@ function CityBanner.UpdateStats( self : CityBanner)
       self.m_Instance.CityHealthBarBacking:SetToolTipString(healthTooltip);
       self.m_Instance.CityHealthBarBacking:SetHide(false);
       if(districtHitpoints > 0) then
-        self.m_Instance.CityHealthBar:SetPercent((districtHitpoints-currentDistrictDamage) / districtHitpoints);  
+        self.m_Instance.CityHealthBar:SetPercent((districtHitpoints-currentDistrictDamage) / districtHitpoints);
       else
-        self.m_Instance.CityHealthBar:SetPercent(0);  
+        self.m_Instance.CityHealthBar:SetPercent(0);
       end
-      self:SetHealthBarColor(); 
-      
+      self:SetHealthBarColor();
+
       if (((districtHitpoints-currentDistrictDamage) / districtHitpoints) == 1 and wallHitpoints == 0) then
         self.m_Instance.CityHealthBar:SetHide(true);
         self.m_Instance.CityHealthBarBacking:SetHide(true);
@@ -1174,13 +1224,13 @@ function CityBanner.UpdateStats( self : CityBanner)
       self.m_Instance.BannerStrengthBacking:SetToolTipString(defTooltip);
       --------------------------------------
     else -- it should be a miniBanner
-      
-      if (self.m_Type == BANNERTYPE_ENCAMPMENT) then 
+
+      if (self.m_Type == BANNERTYPE_ENCAMPMENT) then
         self:UpdateEncampmentBanner();
       elseif (self.m_Type == BANNERTYPE_AERODROME) then
         self:UpdateAerodromeBanner();
       end
-      
+
     end
 
   else  --it's a banner not associated with a district
@@ -1211,12 +1261,12 @@ function OnCityBannerClick( playerID:number, cityID:number )
   if (pPlayer == nil) then
     return;
   end
-  
+
   local pCity = pPlayer:GetCities():FindID(cityID);
   if (pCity == nil) then
     return;
   end
-  
+
   local localPlayerID;
   if (WorldBuilder.IsActive()) then
     localPlayerID = playerID; -- If WorldBuilder is active, allow the user to select the city
@@ -1227,18 +1277,18 @@ function OnCityBannerClick( playerID:number, cityID:number )
   if (pPlayer:GetID() == localPlayerID) then
     UI.SelectCity( pCity );
     UI.SetInterfaceMode(InterfaceModeTypes.CITY_MANAGEMENT);
-  elseif(localPlayerID == PlayerTypes.OBSERVER 
-      or localPlayerID == PlayerTypes.NONE 
+  elseif(localPlayerID == PlayerTypes.OBSERVER
+      or localPlayerID == PlayerTypes.NONE
       or pPlayer:GetDiplomacy():HasMet(localPlayerID)) then
-    
+
     local pPlayerConfig :table    = PlayerConfigurations[playerID];
     local isMinorCiv  :boolean  = pPlayerConfig:GetCivilizationLevelTypeID() ~= CivilizationLevelTypes.CIVILIZATION_LEVEL_FULL_CIV;
     --print("clicked player " .. playerID .. " city.  IsMinor?: ",isMinorCiv);
 
     if UI.GetInterfaceMode() == InterfaceModeTypes.MAKE_TRADE_ROUTE then
       local plotID = Map.GetPlotIndex(pCity:GetX(), pCity:GetY());
-      LuaEvents.CityBannerManager_MakeTradeRouteDestination( plotID );  
-    else    
+      LuaEvents.CityBannerManager_MakeTradeRouteDestination( plotID );
+    else
       if isMinorCiv then
         if UI.GetInterfaceMode() ~= InterfaceModeTypes.SELECTION then
           UI.SetInterfaceMode(InterfaceModeTypes.SELECTION);
@@ -1248,7 +1298,7 @@ function OnCityBannerClick( playerID:number, cityID:number )
         LuaEvents.CityBannerManager_TalkToLeader( playerID );
       end
     end
-    
+
   end
   CQUI_UpdateSelectedCityCitizens();
 end
@@ -1306,13 +1356,13 @@ end
 
 -- ===========================================================================
 function CityBanner.SetFogState( self : CityBanner, fogState : number )
-    
+
   if( fogState == PLOT_HIDDEN ) then
         self:SetHide( true );
     else
         self:SetHide( false );
     end
-        
+
     self.m_FogState = fogState;
 end
 
@@ -1337,8 +1387,8 @@ function CityBanner.UpdateName( self : CityBanner )
     if pCity ~= nil then
       local owner     :number = pCity:GetOwner();
       local pPlayer   :table  = Players[owner];
-      local capitalIcon :string = (pPlayer ~= nil and pPlayer:IsMajor() and pCity:IsCapital()) and "[ICON_Capital]" or "";       
-      local cityName    :string = capitalIcon .. Locale.ToUpper(pCity:GetName());     
+      local capitalIcon :string = (pPlayer ~= nil and pPlayer:IsMajor() and pCity:IsCapital()) and "[ICON_Capital]" or "";
+      local cityName    :string = capitalIcon .. Locale.ToUpper(pCity:GetName());
 
       if not self:IsTeam() then
         local leader:string = PlayerConfigurations[owner]:GetLeaderTypeName();
@@ -1371,7 +1421,7 @@ function CityBanner.UpdateName( self : CityBanner )
         self.m_Instance.CityUnderSiegeIcon:SetHide(false);
       else
         self.m_Instance.CityUnderSiegeIcon:SetHide(true);
-      end      
+      end
 
       -- Update district icons
       -- districtType:number == Index
@@ -1421,51 +1471,54 @@ function CityBanner.UpdateName( self : CityBanner )
       local pCityDistricts:table  = pCity:GetDistricts();
       if g_smartbanner and self.m_Instance.CityBuiltDistrictAquaduct ~= nil then
         --Unlocked citizen check
-        local tParameters :table = {};
-        tParameters[CityCommandTypes.PARAM_MANAGE_CITIZEN] = UI.GetInterfaceModeParameter(CityCommandTypes.PARAM_MANAGE_CITIZEN);
+        if g_smartbanner_unmanaged_citizen then
+          local tParameters :table = {};
+          tParameters[CityCommandTypes.PARAM_MANAGE_CITIZEN] = UI.GetInterfaceModeParameter(CityCommandTypes.PARAM_MANAGE_CITIZEN);
 
-        local tResults  :table = CityManager.GetCommandTargets( pCity, CityCommandTypes.MANAGE, tParameters );
-        if tResults ~= nil then
-          local tPlots    :table = tResults[CityCommandResults.PLOTS];
-          local tUnits    :table = tResults[CityCommandResults.CITIZENS];
-          local tMaxUnits   :table = tResults[CityCommandResults.MAX_CITIZENS];
-          local tLockedUnits  :table = tResults[CityCommandResults.LOCKED_CITIZENS];
-          if tPlots ~= nil and (table.count(tPlots) > 0) then
-            for i,plotId in pairs(tPlots) do      
-              local kPlot :table = Map.GetPlotByIndex(plotId);
-              if(tMaxUnits[i] >= 1 and tUnits[i] >= 1 and tLockedUnits[i] <= 0) then
-                self.m_Instance.CityUnlockedCitizen:SetHide(false);
+          local tResults  :table = CityManager.GetCommandTargets( pCity, CityCommandTypes.MANAGE, tParameters );
+          if tResults ~= nil then
+            local tPlots    :table = tResults[CityCommandResults.PLOTS];
+            local tUnits    :table = tResults[CityCommandResults.CITIZENS];
+            local tMaxUnits   :table = tResults[CityCommandResults.MAX_CITIZENS];
+            local tLockedUnits  :table = tResults[CityCommandResults.LOCKED_CITIZENS];
+            if tPlots ~= nil and (table.count(tPlots) > 0) then
+              for i,plotId in pairs(tPlots) do
+                local kPlot :table = Map.GetPlotByIndex(plotId);
+                if(tMaxUnits[i] >= 1 and tUnits[i] >= 1 and tLockedUnits[i] <= 0) then
+                  self.m_Instance.CityUnlockedCitizen:SetHide(false);
+                end
               end
-            end    
+            end
           end
         end
         -- End Unlocked Citizen Check
-        
-        for i, district in pCityDistricts:Members() do
-          local districtType = district:GetType();
-          local districtInfo:table = GameInfo.Districts[districtType];
-          local isBuilt = pCityDistricts:HasDistrict(districtInfo.Index, true);
-          if isBuilt then
-            if (districtType == iAquaduct) then self.m_Instance.CityBuiltDistrictAquaduct:SetHide(false); end
-            if (districtType == iBath) then self.m_Instance.CityBuiltDistrictBath:SetHide(false); end
-            if (districtType == iNeighborhood) then self.m_Instance.CityBuiltDistrictNeighborhood:SetHide(false); end
-            if (districtType == iMbanza) then self.m_Instance.CityBuiltDistrictMbanza:SetHide(false); end
-            if (districtType == iCampus) then self.m_Instance.CityBuiltDistrictCampus:SetHide(false); end
-            if (districtType == iCommerce) then self.m_Instance.CityBuiltDistrictCommercial:SetHide(false); end
-            if (districtType == iEncampment) then self.m_Instance.CityBuiltDistrictEncampment:SetHide(false); end
-            if (districtType == iTheater) then self.m_Instance.CityBuiltDistrictTheatre:SetHide(false); end
-            if (districtType == iAcropolis) then self.m_Instance.CityBuiltDistrictAcropolis:SetHide(false); end
-            if (districtType == iIndustrial) then self.m_Instance.CityBuiltDistrictIndustrial:SetHide(false); end
-            if (districtType == iHansa) then self.m_Instance.CityBuiltDistrictHansa:SetHide(false); end
-            if (districtType == iHarbor) then self.m_Instance.CityBuiltDistrictHarbor:SetHide(false); end
-            if (districtType == iRoyalNavy) then self.m_Instance.CityBuiltDistrictRoyalNavy:SetHide(false); end
-            if (districtType == iSpaceport) then self.m_Instance.CityBuiltDistrictSpaceport:SetHide(false); end
-            if (districtType == iEntertainmentComplex) then self.m_Instance.CityBuiltDistrictEntertainment:SetHide(false); end
-            if (districtType == iHolySite) then self.m_Instance.CityBuiltDistrictHoly:SetHide(false); end
-            if (districtType == iAerodrome) then self.m_Instance.CityBuiltDistrictAerodrome:SetHide(false); end
-            if (districtType == iStreetCarnival) then self.m_Instance.CityBuiltDistrictStreetCarnival:SetHide(false); end
-            if (districtType == iLavra) then self.m_Instance.CityBuiltDistrictLavra:SetHide(false); end
-            
+
+        if g_smartbanner_districts then
+          for i, district in pCityDistricts:Members() do
+            local districtType = district:GetType();
+            local districtInfo:table = GameInfo.Districts[districtType];
+            local isBuilt = pCityDistricts:HasDistrict(districtInfo.Index, true);
+            if isBuilt then
+              if (districtType == iAquaduct) then self.m_Instance.CityBuiltDistrictAquaduct:SetHide(false); end
+              if (districtType == iBath) then self.m_Instance.CityBuiltDistrictBath:SetHide(false); end
+              if (districtType == iNeighborhood) then self.m_Instance.CityBuiltDistrictNeighborhood:SetHide(false); end
+              if (districtType == iMbanza) then self.m_Instance.CityBuiltDistrictMbanza:SetHide(false); end
+              if (districtType == iCampus) then self.m_Instance.CityBuiltDistrictCampus:SetHide(false); end
+              if (districtType == iCommerce) then self.m_Instance.CityBuiltDistrictCommercial:SetHide(false); end
+              if (districtType == iEncampment) then self.m_Instance.CityBuiltDistrictEncampment:SetHide(false); end
+              if (districtType == iTheater) then self.m_Instance.CityBuiltDistrictTheatre:SetHide(false); end
+              if (districtType == iAcropolis) then self.m_Instance.CityBuiltDistrictAcropolis:SetHide(false); end
+              if (districtType == iIndustrial) then self.m_Instance.CityBuiltDistrictIndustrial:SetHide(false); end
+              if (districtType == iHansa) then self.m_Instance.CityBuiltDistrictHansa:SetHide(false); end
+              if (districtType == iHarbor) then self.m_Instance.CityBuiltDistrictHarbor:SetHide(false); end
+              if (districtType == iRoyalNavy) then self.m_Instance.CityBuiltDistrictRoyalNavy:SetHide(false); end
+              if (districtType == iSpaceport) then self.m_Instance.CityBuiltDistrictSpaceport:SetHide(false); end
+              if (districtType == iEntertainmentComplex) then self.m_Instance.CityBuiltDistrictEntertainment:SetHide(false); end
+              if (districtType == iHolySite) then self.m_Instance.CityBuiltDistrictHoly:SetHide(false); end
+              if (districtType == iAerodrome) then self.m_Instance.CityBuiltDistrictAerodrome:SetHide(false); end
+              if (districtType == iStreetCarnival) then self.m_Instance.CityBuiltDistrictStreetCarnival:SetHide(false); end
+              if (districtType == iLavra) then self.m_Instance.CityBuiltDistrictLavra:SetHide(false); end
+            end
           end
         end
       end
@@ -1554,7 +1607,7 @@ function CityBanner.UpdateReligion( self : CityBanner )
 
     majorityReligionColor = UI.GetColorValue(GameInfo.Religions[eMajorityReligion].Color);
     local majorityReligionIcon = "ICON_" .. GameInfo.Religions[eMajorityReligion].ReligionType;
-    
+
     local textureOffsetX:number, textureOffsetY:number, textureSheet:string = IconManager:FindIconAtlas(majorityReligionIcon, SIZE_RELIGION_ICON_LARGE);
     if(textureSheet == nil or textureSheet == "") then
       UI.DataError("Could not find icon in CityBanner.UpdateReligion: icon=\""..majorityReligionIcon.."\", iconSize="..tostring(SIZE_RELIGION_ICON_LARGE) );
@@ -1577,7 +1630,7 @@ function CityBanner.UpdateReligion( self : CityBanner )
     cityInst.MeterPressure:SetHide(true);
     religionColor = COLOR_NO_MAJOR_RELIGION;
   end
-  
+
   -- Preallocate total fill so we can stagger the meters
   local totalFillPercent:number = 0;
   local iCityPopulation:number = pCity:GetPopulation();
@@ -1599,7 +1652,7 @@ function CityBanner.UpdateReligion( self : CityBanner )
         Color=GameInfo.Religions[religion].Color });
     end
   end
-  
+
   -- Sort religions by largest number of followers
   table.sort(activeReligions, function(a,b) return a.Followers < b.Followers; end);
 
@@ -1631,7 +1684,7 @@ function CityBanner.UpdateReligion( self : CityBanner )
 
   -- Spawn a meter for each religion
   for _, religionData in pairs(activeReligions) do
-    
+
     local pressure:number = -1;
     local religionColor:number = UI.GetColorValue(religionData.Color);
     if(religionData.FillPercent > 0) then
@@ -1645,7 +1698,7 @@ function CityBanner.UpdateReligion( self : CityBanner )
         local meterType:string = CalculateMeterTypeFromPressure(pressure);
         meterInst = self:GetReligionMeter(meterType, religionColor);
       end
-    
+
       if(meterInst ~= nil) then
         meterInst.Meter:SetPercent(totalFillPercent);
 
@@ -1797,7 +1850,7 @@ function CalculateFinalReligionPressure( pressure : number )
   else
     result = RELIGION_PRESSURE.LOW;
   end
-    
+
   return result;
 end
 
@@ -1811,7 +1864,7 @@ function CityBanner.AddReligionPressureChange( self : CityBanner, prevFill : num
   end
 
   table.insert(cachedData.changes, { prevFill=prevFill, newFill=newFill, religion=religion });
-  
+
   if(not cachedData.bProcessingChanges) then
     self:ProcessNextReligionPressureChange();
   end
@@ -1855,7 +1908,7 @@ function CityBanner.ProcessNextReligionPressureChange( self : CityBanner )
     -- Set Religion Icon
     local religion:number = change.religion;
     local religionColor:number = UI.GetColorValue(GameInfo.Religions[religion].Color);
-    
+
     -- Create or reset changes instance manager
     local changesIM:table = cityInst[DATA_FIELD_RELIGION_CHANGES_IM];
     if(changesIM == nil) then
@@ -1933,11 +1986,11 @@ end
 function CityBanner.GetReligionMeter( self : CityBanner, meterType : string, religionColor : number )
 
   local metersIM:table = self.m_Instance[DATA_FIELD_RELIGION_METERS_IM];
-  if(metersIM == nil) then 
+  if(metersIM == nil) then
     metersIM = {};
     self.m_Instance[DATA_FIELD_RELIGION_METERS_IM] = metersIM;
   end
-  
+
   local meterIM:table = metersIM[meterType];
   if(meterIM == nil) then
     meterIM = InstanceManager:new(meterType, "Meter", self.m_Instance.Meters);
@@ -1961,7 +2014,7 @@ end
 function CityBanner.UpdatePosition( self : CityBanner )
   local yOffset = 0;  --offset for 2D strategic view
   local zOffset = 0;  --offset for 3D world view
-  
+
   if (UI.GetWorldRenderView() == WorldRenderView.VIEW_2D) then
     yOffset = YOFFSET_2DVIEW;
     zOffset = 0;
@@ -1974,8 +2027,8 @@ function CityBanner.UpdatePosition( self : CityBanner )
   if(m_isReligionLensActive and self.m_eMajorityReligion >= 0) then
     yOffset = yOffset + OFFSET_RELIGION_BANNER;
   end
-  
-  
+
+
   local worldX;
   local worldY;
   local worldZ;
@@ -1999,7 +2052,7 @@ function OnRefreshBannerPositions()
         local locX      :number = city:GetX();
         local locY      :number = city:GetY();
         local isVisChange :boolean = false;
-        
+
         if pLocalPlayerVis:IsVisible(locX, locY) then
           OnCityVisibilityChanged(playerID, cityID, PLOT_VISIBLE);
           isVisChange = true;
@@ -2013,7 +2066,7 @@ function OnRefreshBannerPositions()
           local bannerInstance = GetCityBanner( playerID, cityID );
           if (bannerInstance ~= nil) then
             bannerInstance:UpdatePosition( bannerInstance );
-          end     
+          end
         --end
       end
       local playerDistricts = players[i]:GetDistricts();
@@ -2047,13 +2100,13 @@ function CityBanner.UpdateRangeStrike( self : CityBanner)
   local controls:table  = self.m_Instance;
   if controls.CityAttackContainer == nil then
     -- This normal behaviour in the case of missile silo and aerodrome minibanners
-    return; 
+    return;
   end
 
   local pDistrict:table = self:GetDistrict();
   if pDistrict ~= nil and self:IsTeam() then
     if (self.m_Player:GetID() == Game.GetLocalPlayer() and CanRangeAttack(pDistrict) ) then
-      controls.CityAttackContainer:SetHide(false);        
+      controls.CityAttackContainer:SetHide(false);
     else
       controls.CityAttackContainer:SetHide(true);
     end
@@ -2070,12 +2123,12 @@ function OnCityRangeStrikeButtonClick( playerID, cityID )
   if (pPlayer == nil) then
     return;
   end
-  
+
   local pCity = pPlayer:GetCities():FindID(cityID);
   if (pCity == nil) then
     return;
   end;
-  
+
   UI.SetInterfaceMode(InterfaceModeTypes.CITY_RANGE_ATTACK);
   UI.SelectCity( pCity );
 end
@@ -2086,12 +2139,12 @@ function OnDistrictRangeStrikeButtonClick( playerID, districtID )
   if (pPlayer == nil) then
     return;
   end
-  
+
   local pDistrict = pPlayer:GetDistricts():FindID(districtID);
   if (pDistrict == nil) then
     return;
   end;
-  
+
   UI.DeselectAll();
   UI.SelectDistrict(pDistrict);
   UI.SetInterfaceMode(InterfaceModeTypes.DISTRICT_RANGE_ATTACK);
@@ -2126,7 +2179,7 @@ function AddCityBannerToMap( playerID: number, cityID : number )
     else
       CityBanner:new( playerID, cityID, idDistrict, BANNERTYPE_CITY_CENTER, BANNERSTYLE_OTHER_TEAM );
     end
-  end 
+  end
 end
 
 -- ===========================================================================
@@ -2134,15 +2187,15 @@ function AddMiniBannerToMap( playerID: number, cityID: number, districtID: numbe
   local idLocalPlayer :number = Game.GetLocalPlayer();
   local pPlayer   :table  = Players[playerID];
 
-  if (idLocalPlayer == playerID) then   
-    CityBanner:new( playerID, cityID, districtID, styleEnum, BANNERSTYLE_LOCAL_TEAM );    
+  if (idLocalPlayer == playerID) then
+    CityBanner:new( playerID, cityID, districtID, styleEnum, BANNERSTYLE_LOCAL_TEAM );
   else
-    CityBanner:new( playerID, cityID, districtID, styleEnum, BANNERSTYLE_OTHER_TEAM );    
+    CityBanner:new( playerID, cityID, districtID, styleEnum, BANNERSTYLE_OTHER_TEAM );
   end
 end
 
 -- ===========================================================================
-function OnCityAddedToMap( playerID: number, cityID : number, cityX : number, cityY : number )  
+function OnCityAddedToMap( playerID: number, cityID : number, cityX : number, cityY : number )
   if (CityBannerInstances[ playerID ] ~= nil and
       CityBannerInstances[ playerID ][ cityID ] ~= nil) then
       return;
@@ -2211,7 +2264,7 @@ function OnImprovementAddedToMap(locX, locY, eImprovementType, eOwner)
     UI.DataError("No database entry for eImprovementType #"..tostring(eImprovementType).." for ("..tostring(locX)..","..tostring(locY)..") and owner "..tostring(eOwner));
     return;
   end
-  
+
   -- Right now we're only interested in the Airstrip improvement
   if ( improvementData.AirSlots == 0 and improvementData.WeaponSlots == 0) then
     return;
@@ -2247,20 +2300,20 @@ function OnDistrictProgressChanged(playerID: number, districtID : number, distri
   if (pPlayer ~= nil) then
     local pDistrict = pPlayer:GetDistricts():FindID(districtID);
     if (pDistrict ~= nil) then
-      
+
     end
   end
 end
 
 -- ===========================================================================
 function OnCityRemovedFromMap( playerID: number, cityID : number )
-  
+
     local bannerInstance = GetCityBanner( playerID, cityID );
   if (bannerInstance ~= nil) then
     bannerInstance:destroy();
     CityBannerInstances[ playerID ][ cityID ] = nil;
   end
-  
+
 end
 
 -- ===========================================================================
@@ -2331,10 +2384,10 @@ end
 
 -- ===========================================================================
 function OnBuildingChanged( plotX:number, plotY:number, buildingIndex:number, playerID:number, iPercentComplete:number)
-  
+
   local pPlayer = Players[playerID];
   if (pPlayer ~= nil and pPlayer:GetCities() ~= nil) then
-    
+
     -- Update the capital, since for now capital status is shown in name
     local pCapital = pPlayer:GetCities():GetCapitalCity();
     if (pCapital ~= nil) then
@@ -2361,7 +2414,7 @@ end
 function OnCityNameChange( playerID: number, cityID : number)
   local banner:CityBanner = GetCityBanner( playerID, cityID );
   if (banner ~= nil ) then
-    banner:UpdateName();   
+    banner:UpdateName();
   end
 end
 
@@ -2374,7 +2427,7 @@ function OnCapitalCityChanged( playerID: number, cityID : number )
 
     local banner:CityBanner = GetCityBanner( playerID, cityID );
   if (banner ~= nil ) then
-    banner:UpdateName();   
+    banner:UpdateName();
     end
 end
 
@@ -2479,7 +2532,7 @@ function OnDistrictDamageChanged( playerID:number, districtID:number, damageType
       local pLocalPlayerVis = PlayersVisibility[Game.GetLocalPlayer()];
       if (pLocalPlayerVis ~= nil) then
         if (pLocalPlayerVis:IsVisible(pDistrict:GetX(), pDistrict:GetY())) then
-                
+
           local iDelta = newDamage - oldDamage;
           local szText;
 
@@ -2755,7 +2808,7 @@ end
 function OnTurnActivated( playerID:number )
   local pPlayer = Players[ playerID ];
   if (pPlayer ~= nil) then
-  
+
     local playerBannerInstances = CityBannerInstances[ playerID ];
     if (playerBannerInstances ~= nil) then
       for id, banner in pairs(playerBannerInstances) do
@@ -2829,7 +2882,7 @@ function Reload()
               local locY = pPlot:GetY();
               OnImprovementAddedToMap(locX, locY, eImprovement, playerID);
               if (pLocalPlayerVis:IsVisible(locX, locY) == true) then
-                OnImprovementVisibilityChanged(locX, locY, eImprovement, PLOT_VISIBLE); 
+                OnImprovementVisibilityChanged(locX, locY, eImprovement, PLOT_VISIBLE);
               end
             end
           end
@@ -2877,7 +2930,7 @@ function OnLocalPlayerChanged( localPlayerID:number , prevLocalPlayerID:number )
   for iPlayer,kCityBanners in pairs(CityBannerInstances) do
     for iCity,kCityBanner in pairs(kCityBanners) do
       kCityBanner:destroy();
-      AddCityBannerToMap( iPlayer, iCity );       
+      AddCityBannerToMap( iPlayer, iCity );
     end
   end
 
@@ -2928,7 +2981,7 @@ function OnObjectPairingChanged(eSubType, parentOwner, parentType, parentID, chi
 end
 
 -- ===========================================================================
-function RegisterDirtyEvents()  
+function RegisterDirtyEvents()
   m_pDirtyCityComponents = DirtyComponentsManager.Create();
   m_pDirtyCityComponents:AddEvent("CITY_POPULATION_CHANGED");
   m_pDirtyCityComponents:AddEvent("CITY_RELIGION_CHANGED");
@@ -2936,13 +2989,13 @@ end
 
 -- ===========================================================================
 function RealizeReligion()
-  
+
   m_HolySiteIconsIM:ResetInstances();
     -- Only clear the religion lens if we're turning off lenses altogether, but not if switching to another modal lens. (Turning on another modal lens clears it already)
   if UI.GetInterfaceMode() ~= InterfaceModeTypes.VIEW_MODAL_LENS then
     UILens.ClearLayerHexes( LensLayers.HEX_COLORING_RELIGION );
   end
-  
+
   for _, playerBannerInstances in pairs(CityBannerInstances) do
     for id, banner in pairs(playerBannerInstances) do
       if (banner ~= nil and banner.m_Instance.ReligionMeter ~= nil and banner:IsVisible()) then
@@ -2954,7 +3007,7 @@ function RealizeReligion()
 end
 
 -- ===========================================================================
-function OnContextInitialize( isHotload : boolean ) 
+function OnContextInitialize( isHotload : boolean )
   if isHotload then
     Reload();
     LuaEvents.GameDebug_GetValues( "CityBannerManager" );
@@ -2989,7 +3042,7 @@ end
 --  Called once per layer that is turned on when a new lens is activated,
 --  or when a player explicitly turns off the layer from the "player" lens.
 -- ===========================================================================
-function OnLensLayerOn( layerNum:number )   
+function OnLensLayerOn( layerNum:number )
   if layerNum == LensLayers.HEX_COLORING_RELIGION then
     m_isReligionLensActive = true;
     RealizeReligion();
@@ -3014,7 +3067,7 @@ end
 -- ===========================================================================
 function OnGameDebugReturn( context:string, contextTable:table )
   if context == "CityBannerManager" then
-    m_isReligionLensActive = contextTable["m_isReligionLensActive"]; 
+    m_isReligionLensActive = contextTable["m_isReligionLensActive"];
     RealizeReligion();
   end
 end
@@ -3036,7 +3089,7 @@ function OnCameraUpdate( vFocusX:number, vFocusY:number, fZoomLevel:number )
     return;
   end
   m_zoomMultiplier= 1-fZoomLevel;
-  
+
   if ( math.abs(m_zoomMultiplier-m_prevZoomMultiplier) > ZOOM_MULT_DELTA) then
     OnRefreshBannerPositions();
   end
@@ -3050,7 +3103,7 @@ function OnInterfaceModeChanged( oldMode:number, newMode:number )
     local localPlayerID:number = Game.GetLocalPlayer();
     for _, playerBannerInstances in pairs(CityBannerInstances) do
       for id, banner in pairs(playerBannerInstances) do
-        if banner ~= nil then 
+        if banner ~= nil then
           if banner:GetCity():GetTrade():HasActiveTradingPost(localPlayer) then
             banner.m_Instance.TradingPostIcon:SetHide(false);
             banner.m_Instance.TradingPostDisabledIcon:SetHide(true);
@@ -3083,19 +3136,19 @@ end
 -- ===========================================================================
 function CQUI_UpdateSelectedCityCitizens( plotId:number )
 
-	local pSelectedCity	:table = UI.GetHeadSelectedCity();
-	local kPlot			:table = Map.GetPlotByIndex(plotId);
-	local tParameters	:table = {};
-	tParameters[CityCommandTypes.PARAM_MANAGE_CITIZEN] = UI.GetInterfaceModeParameter(CityCommandTypes.PARAM_MANAGE_CITIZEN);
-	tParameters[CityCommandTypes.PARAM_X] = kPlot:GetX();
-	tParameters[CityCommandTypes.PARAM_Y] = kPlot:GetY();
+  local pSelectedCity	:table = UI.GetHeadSelectedCity();
+  local kPlot			:table = Map.GetPlotByIndex(plotId);
+  local tParameters	:table = {};
+  tParameters[CityCommandTypes.PARAM_MANAGE_CITIZEN] = UI.GetInterfaceModeParameter(CityCommandTypes.PARAM_MANAGE_CITIZEN);
+  tParameters[CityCommandTypes.PARAM_X] = kPlot:GetX();
+  tParameters[CityCommandTypes.PARAM_Y] = kPlot:GetY();
 
-	local tResults :table = CityManager.RequestCommand( pSelectedCity, CityCommandTypes.MANAGE, tParameters );
-	return true;
+  local tResults :table = CityManager.RequestCommand( pSelectedCity, CityCommandTypes.MANAGE, tParameters );
+  return true;
 end
 
 -- ===========================================================================
-function Initialize() 
+function Initialize()
 
   RegisterDirtyEvents();
 
@@ -3111,7 +3164,7 @@ function Initialize()
   Events.CityFocusChanged.Add(        OnCityFocusChange );
   Events.CityNameChanged.Add(         OnCityNameChange );
   Events.CityProductionChanged.Add(     OnCityProductionChanged);
-  Events.CityProductionUpdated.Add(     OnCityProductionUpdate); 
+  Events.CityProductionUpdated.Add(     OnCityProductionUpdate);
   Events.CityProductionCompleted.Add(     OnCityProductionCompleted);
   Events.CityReligionChanged.Add(       OnCityReligionChanged );
   Events.CityReligionFollowersChanged.Add(  OnCityReligionChanged );
@@ -3126,7 +3179,7 @@ function Initialize()
   Events.DistrictBuildProgressChanged.Add(  OnDistrictAddedToMap);
   --Events.DistrictBuildProgressChanged.Add(  OnDistrictProgressChanged);
   Events.DistrictCombatChanged.Add(     OnDistrictCombatChanged );
-  Events.DistrictDamageChanged.Add(     OnDistrictDamageChanged );  
+  Events.DistrictDamageChanged.Add(     OnDistrictDamageChanged );
   Events.DistrictRemovedFromMap.Add(      OnDistrictRemovedFromMap );
   Events.DistrictUnitsChanged.Add(      OnDistrictUnitsChanged );
   Events.DistrictVisibilityChanged.Add(   OnDistrictVisibilityChanged );
@@ -3138,7 +3191,7 @@ function Initialize()
   Events.InterfaceModeChanged.Add(      OnInterfaceModeChanged );
   Events.LensLayerOff.Add(          OnLensLayerOff );
   Events.LensLayerOn.Add(           OnLensLayerOn );
-  Events.LocalPlayerChanged.Add(        OnLocalPlayerChanged);  
+  Events.LocalPlayerChanged.Add(        OnLocalPlayerChanged);
   Events.PlayerTurnActivated.Add(       OnPlayerTurnActivated);
   Events.ObjectPairing.Add(         OnObjectPairingChanged);
   Events.QuestChanged.Add(          OnQuestChanged );
@@ -3154,8 +3207,10 @@ function Initialize()
   Events.CitySiegeStatusChanged.Add(      OnSiegeStatusChanged);
   Events.CityWorkerChanged.Add(           OnCityWorkerChanged );
 
-  LuaEvents.GameDebug_Return.Add(OnGameDebugReturn);  
+  LuaEvents.GameDebug_Return.Add(OnGameDebugReturn);
+
   LuaEvents.CQUI_SettingsInitialized.Add(CQUI_OnSettingsUpdate);
+  Events.CitySelectionChanged.Add( CQUI_OnBannerMouseExit );
 end
 Initialize();
 
