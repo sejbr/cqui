@@ -524,6 +524,27 @@
     <Row Tag="LOC_CQUI_CITYVIEW_SMARTBANNER_CULTURAL_TOOLTIP" Language="it_IT">
       <Text>Mostra il numero di turni alla crescita culturale.</Text>
     </Row>
+    <Row Tag="LOC_CQUI_CITYVIEW_SMARTWORKICON" Language="it_IT">
+      <Text>Icone Caselle Lavorate Smart</Text>
+    </Row>
+    <Row Tag="LOC_CQUI_CITYVIEW_SMARTWORKICON_TOOLTIP" Language="it_IT">
+      <Text>Personalizza dimensione e trasparenza delle icone cittadino delle caselle lavorate</Text>
+    </Row>
+    <Row Tag="LOC_CQUI_CITYVIEW_SMARTWORKICONALPHA" Language="it_IT">
+      <Text>Trasparenza Icone Caselle Lavorate Smart</Text>
+    </Row>
+    <Row Tag="LOC_CQUI_CITYVIEW_SMARTWORKICONSIZE" Language="it_IT">
+      <Text>Dimensione Icone Caselle Lavorate Smart</Text>
+    </Row>
+    <Row Tag="LOC_CQUI_CITYVIEW_WORKICONS_HEADER" Language="it_IT">
+      <Text>Icone Caselle Lavorate</Text>
+    </Row>
+    <Row Tag="LOC_CQUI_CITYVIEW_WORKICONALPHA" Language="it_IT">
+      <Text>Trasparenza Icone Caselle Lavorate</Text>
+    </Row>
+    <Row Tag="LOC_CQUI_CITYVIEW_WORKICONSIZE" Language="it_IT">
+      <Text>Dimensione Icone Caselle Lavorate</Text>
+    </Row>
     <Row Tag="LOC_CQUI_GENERAL" Language="it_IT">
       <Text>Generali</Text>
     </Row>
@@ -968,6 +989,27 @@
     <Row Tag="LOC_CQUI_CITYVIEW_SMARTBANNER_CULTURAL_TOOLTIP" Language="de_DE">
       <Text>Zeige die Rundenzahl bis zur Grenzausdehnung an.</Text>
     </Row>
+    <Row Tag="LOC_CQUI_CITYVIEW_SMARTWORKICON" Language="de_DE">
+      <Text>Smart BürgerIcons</Text>
+    </Row>
+    <Row Tag="LOC_CQUI_CITYVIEW_SMARTWORKICON_TOOLTIP" Language="de_DE">
+      <Text>Transparenz und Größe der BürgerIcons einstellen</Text>
+    </Row>
+    <Row Tag="LOC_CQUI_CITYVIEW_SMARTWORKICONALPHA" Language="de_DE">
+      <Text>Smart BürgerIcon Transparenz</Text>
+    </Row>
+    <Row Tag="LOC_CQUI_CITYVIEW_SMARTWORKICONSIZE" Language="de_DE">
+      <Text>Smart BürgerIcon Größe</Text>
+    </Row>
+    <Row Tag="LOC_CQUI_CITYVIEW_WORKICONS_HEADER" Language="de_DE">
+      <Text>BürgerIcons</Text>
+    </Row>
+    <Row Tag="LOC_CQUI_CITYVIEW_WORKICONALPHA" Language="de_DE">
+      <Text>BürgerIcon Transparenz</Text>
+    </Row>
+    <Row Tag="LOC_CQUI_CITYVIEW_WORKICONSIZE" Language="de_DE">
+      <Text>BürgerIcon Größe</Text>
+    </Row>
     <Row Tag="LOC_CQUI_GENERAL" Language="de_DE">
       <Text>Allgemein</Text>
     </Row>
@@ -1035,7 +1077,7 @@
       <Text>Spiele das Popup-Audio ab, das erfolgt, wenn eine neue Tech oder Ausrichtung abgeschlossen wurde. Kann völlig unabhängig von der visuellen Popup-Komponente ein- und ausgeschaltet werden</Text>
     </Row>
     <Row Tag="LOC_CQUI_SETTINGS_REMINDER" Language="de_DE">
-      <Text>Denk dran: CQUI Einstellungen werden mit dem individuellen Savegame gespeichert![NEWLINE]Wenn Du die Voreinstellungen generell ändern willst, bitte editiere die CQUI_Settings.sql Datei innerhalb des [MOD INSTALL DIRECTORY]/CQUI/Assets Verzeichnisses</Text>
+      <Text>Denk dran: CQUI Einstellungen werden im individuellen Savegame gespeichert![NEWLINE]Wenn Du die Voreinstellungen generell ändern willst, dann editiere bitte die Datei [NEWLINE]CQUI_Settings.sql im Verzeichnis[MOD INSTALL DIRECTORY]/CQUI/Assets.</Text>
     </Row>
     <Row Tag="LOC_CQUI_UNITS" Language="de_DE">
       <Text>Einheiten</Text>
@@ -1046,16 +1088,6 @@
     <Row Tag="LOC_CQUI_UNITS_AUTOEXPANDUNITACTIONS" Language="de_DE">
       <Text>Ansicht aller Befehle im Einheiten-Panel</Text>
     </Row>
-    <Row Tag="LOC_CQUI_UNITS" Language="pl_PL">
-      <Text>Jednostki</Text>
-    </Row>
-    <Row Tag="LOC_CQUI_UNITS_SHOWUNITPATHS" Language="pl_PL">
-      <Text>Pokazuj drogę jednostki po zaznaczeniu bądź najechaniu myszką</Text>
-    </Row>
-    <Row Tag="LOC_CQUI_UNITS_AUTOEXPANDUNITACTIONS" Language="pl_PL">
-      <Text>Automatycznie rozwijaj listę akcji w panelu jednostki</Text>
-    </Row>
-
 
     <!-- KOREAN -->
 
