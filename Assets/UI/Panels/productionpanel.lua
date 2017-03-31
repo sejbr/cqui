@@ -1106,7 +1106,7 @@ function PopulateList(data, listIM)
       local turnsStrTT:string = "";
       local turnsStr:string = "";
 
-      if(item.HasBeenBuilt and GameInfo.Districts[item.Type].OnePerCity == true and not item.Repair and not item.Contaminated and not item.TurnsLeft) then
+      if(item.HasBeenBuilt and GameInfo.Districts[item.Type].OnePerCity == true and not item.Repair and not item.Contaminated) then
         turnsStrTT = Locale.Lookup("LOC_HUD_CITY_DISTRICT_BUILT_TT");
         turnsStr = "[ICON_Checkmark]";
         districtListing.RecommendedIcon:SetHide(true);
@@ -1114,10 +1114,6 @@ function PopulateList(data, listIM)
         if(item.TurnsLeft) then
           turnsStrTT = item.TurnsLeft .. Locale.Lookup("LOC_HUD_CITY_TURNS_TO_COMPLETE", item.TurnsLeft);
           turnsStr = item.TurnsLeft .. "[ICON_Turn]";
-        else
-          turnsStrTT = Locale.Lookup("LOC_HUD_CITY_DISTRICT_BUILT_TT");
-          turnsStr = "[ICON_Checkmark]";
-          districtListing.RecommendedIcon:SetHide(true);
         end
       end
 
@@ -2179,7 +2175,8 @@ function Refresh()
         end
 
         -- Check for wall obsolescence
-        if(row.OuterDefenseHitPoints and pPlayer:GetCulture():HasCivic(GameInfo.Civics["CIVIC_CIVIL_ENGINEERING"].Index)) then
+        -- CQUI change: checks if the civil engineering civic exists at all before checking against it. We assume that walls never become obsolete if the civil engineering tech doesn't exist
+        if(row.OuterDefenseHitPoints and GameInfo.Civics["CIVIC_CIVIL_ENGINEERING"] and pPlayer:GetCulture():HasCivic(GameInfo.Civics["CIVIC_CIVIL_ENGINEERING"].Index)) then
           doShow = false;
         end
 
