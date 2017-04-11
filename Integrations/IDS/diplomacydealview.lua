@@ -1454,7 +1454,7 @@ function OnClickAvailableCity(player, valueType, subType)
 
 		-- Already there?
 		local pDealItem = pDeal:FindItemByValueType(DealItemTypes.CITIES, subType, valueType, player:GetID());
-		if (pDealItem == nil) then
+		if (pDealItem == nil or pDealItem:GetValueTypeNameID() ~= GetCityData(player:GetCities():FindID(valueType)).CityName) then --ARISTOS
 			
 			-- No
 			pDealItem = pDeal:AddItemOfType(DealItemTypes.CITIES, player:GetID());
@@ -1523,8 +1523,9 @@ function getImportedResources(playerID)
 		if ( otherID ~= playerID ) then
 			local pPlayerConfig :table = PlayerConfigurations[otherID];
 			local pDeals        :table = DealManager.GetPlayerDeals(playerID, otherID); -- ARISTOS: double filter Resources!
+			local isNotCheat	:boolean = (playerID == Game.GetLocalPlayer()) or (otherID == Game.GetLocalPlayer()); -- ARISTOS: non-cheat CQUI policy
 
-			if ( pDeals ~= nil ) then
+			if ( pDeals ~= nil and isNotCheat) then --ARISTOS: show only if local player is the importer or the exporter!!!
 				for i,pDeal in ipairs(pDeals) do
 					--if ( pDeal:IsValid() ) then --!! ARISTOS: Bug??? deal:IsValid() not always returns true even if the deal IS valid!!!
 						-- Add incoming resource deals
@@ -1576,8 +1577,9 @@ function getImportedResources(playerID)
 
 	-- Add resources provided by city states
 	for i, pMinorPlayer in ipairs(PlayerManager.GetAliveMinors()) do
-		local pMinorPlayerInfluence:table = pMinorPlayer:GetInfluence();		
-		if pMinorPlayerInfluence ~= nil then
+		local pMinorPlayerInfluence:table = pMinorPlayer:GetInfluence();
+		local hasMetLocalPlayer: boolean = Players[Game.GetLocalPlayer()]:GetDiplomacy():HasMet( pMinorPlayer:GetID() ); --ARISTOS: CQUI anti-cheat policy
+		if (pMinorPlayerInfluence ~= nil and hasMetLocalPlayer) then --ARISTOS: show only if local player has met the City State!!!
 			local suzerainID:number = pMinorPlayerInfluence:GetSuzerain();
 			if suzerainID == playerID then
 				for row in GameInfo.Resources() do
@@ -1663,18 +1665,18 @@ function PopulateAvailableResources(player : table, iconList : table, className 
 			local resourceDesc = GameInfo.Resources[entry.ForType];
 			local resourceType = entry.ForType;
 
-			if (resourceDesc.ResourceClassType ~= className) then -- wrong resource type; null
-				playerResources[resourceType] = nil;
-			else
+			if (resourceDesc ~= nil and resourceDesc.ResourceClassType == className) then -- correct resource class
+				--playerResources[resourceType] = nil;
+			--else
 				-- Check if all copies have been traded away
 				if (entry.MaxAmount == 0) then
 					table.insert(playerUntradeableResources, playerResources[i]);
-					playerResources[resourceType] = nil;
+					--playerResources[resourceType] = nil;
 
 				-- Check if partner already has the resource
 				elseif (MatchesPartnerResource(partnerResources, resourceDesc.ResourceType) > -1 or MatchesPartnerResource(partnerImportedResources, resourceDesc.ResourceType) > -1) then
 					table.insert(playerDuplicateResources, playerResources[i]);
-					playerResources[resourceType] = nil;
+					--playerResources[resourceType] = nil;
 
 				-- Tradeable item
 				else
@@ -1841,17 +1843,18 @@ end
 -- ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 function MakeCityToolTip(pCity : table)
 	local cityData = GetCityData(pCity);
-
+	local isLocalPlayerCity = pCity:GetOwner() == Game.GetLocalPlayer();
 	if (pCity ~= nil) then	
 		local szToolTip = Locale.ToUpper( Locale.Lookup(cityData.CityName)) .. "[NEWLINE]";
-		szToolTip = szToolTip .. Locale.Lookup("LOC_DEAL_CITY_POPULATION_TOOLTIP", pCity:GetPopulation()) .. "[NEWLINE]";		
-		szToolTip = szToolTip .. "[ICON_Food]" .. toPlusMinusString(cityData.FoodPerTurn) .. " ";
-		szToolTip = szToolTip .. "[ICON_Production]" .. toPlusMinusString(cityData.ProductionPerTurn) .. " ";
-		szToolTip = szToolTip .. "[ICON_Science]" .. toPlusMinusString(cityData.SciencePerTurn) .. " ";
-		szToolTip = szToolTip .. "[ICON_Culture]" .. toPlusMinusString(cityData.CulturePerTurn) .. " ";
-		szToolTip = szToolTip .. "[ICON_Faith]" .. toPlusMinusString(cityData.FaithPerTurn) .. " ";
-		szToolTip = szToolTip .. "[ICON_Gold]" .. toPlusMinusString(cityData.GoldPerTurn);
-
+		szToolTip = szToolTip .. Locale.Lookup("LOC_DEAL_CITY_POPULATION_TOOLTIP", pCity:GetPopulation()) .. "[NEWLINE]";
+		if isLocalPlayerCity then --ARISTOS: only show detailed info for cities owned or occupied by local player! CQUI non-cheat policy
+			szToolTip = szToolTip .. "[ICON_Food]" .. toPlusMinusString(cityData.FoodPerTurn) .. " ";
+			szToolTip = szToolTip .. "[ICON_Production]" .. toPlusMinusString(cityData.ProductionPerTurn) .. " ";
+			szToolTip = szToolTip .. "[ICON_Science]" .. toPlusMinusString(cityData.SciencePerTurn) .. " ";
+			szToolTip = szToolTip .. "[ICON_Culture]" .. toPlusMinusString(cityData.CulturePerTurn) .. " ";
+			szToolTip = szToolTip .. "[ICON_Faith]" .. toPlusMinusString(cityData.FaithPerTurn) .. " ";
+			szToolTip = szToolTip .. "[ICON_Gold]" .. toPlusMinusString(cityData.GoldPerTurn);
+		end
 		local districtNames = {};
 		local pCityDistricts = pCity:GetDistricts();
 		if (pCityDistricts ~= nil) then
@@ -1907,10 +1910,16 @@ function renderCity(pCity : table, player : table, targetContainer : table)
 	end
 	
 	button.PopulationLabel:SetText(tostring(cityData.Population));
-	button.FoodLabel:SetText("[ICON_FOOD]" .. toPlusMinusString(cityData.FoodPerTurn));
-	button.ProductionLabel:SetText("[ICON_PRODUCTION]" .. toPlusMinusString(cityData.ProductionPerTurn));
-	button.ScienceLabel:SetText("[ICON_SCIENCE]" .. toPlusMinusString(cityData.SciencePerTurn));
-
+	--ARISTOS: only show detailed info for cities owned or occupied by local player! CQUI non-cheat policy
+	if pCity:GetOwner() == Game.GetLocalPlayer() then
+		button.FoodLabel:SetText("[ICON_FOOD]" .. toPlusMinusString(cityData.FoodPerTurn));
+		button.ProductionLabel:SetText("[ICON_PRODUCTION]" .. toPlusMinusString(cityData.ProductionPerTurn));
+		button.ScienceLabel:SetText("[ICON_SCIENCE]" .. toPlusMinusString(cityData.SciencePerTurn));
+	else
+		button.FoodLabel:SetText("");
+		button.ProductionLabel:SetText("");
+		button.ScienceLabel:SetText("");
+	end
 	button.SelectButton:SetToolTipString( MakeCityToolTip(pCity) );
 
 	return button;
@@ -1967,7 +1976,7 @@ function PopulateAvailableCities(player : table, iconList : table)
 			local subType = entry.SubType;
 			local pCity = player:GetCities():FindID( type );
 			-- Handle occupied cities
-			if pCity == nil then
+			if pCity == nil or (entry.ForTypeName ~= GetCityData(pCity).CityName and not pCity:IsOccupied()) then --ARISTOS
 				pCity = otherPlayer:GetCities():FindID( type );
 			end
 
@@ -2039,7 +2048,9 @@ function PopulateAvailableGreatWorks(player : table, iconList : table)
 				local icon = ms_IconAndTextIM:GetInstance(iconList.ListStack);
 				SetIconToSize(icon, "ICON_" .. greatWorkDesc.GreatWorkType, 42);
 				icon.AmountText:SetHide(true);
-				icon.IconText:LocalizeAndSetText(entry.ForTypeName);
+				if (entry.ForTypeName ~= nil ) then
+                    icon.IconText:LocalizeAndSetText(entry.ForTypeName);
+				end
 				icon.SelectButton:SetDisabled( not entry.IsValid and entry.ValidationResult ~= DealValidationResult.MISSING_DEPENDENCY );	-- Hide if invalid, unless it is just missing a dependency, the user will update that when it is added to the deal.
 				icon.ValueText:SetHide(true);
 
@@ -2412,14 +2423,16 @@ function PopulateDealCities(player : table, iconList : table)
 		local pDealItem;
 		for pDealItem in pDeal:Items() do
 			local type = pDealItem:GetType();
+			local valueType = pDealItem:GetValueType(); --ARISTOS
+			local valueName = pDealItem:GetValueTypeNameID(); --ARISTOS
 			if (pDealItem:GetFromPlayerID() == player:GetID()) then
 				local dealItemID = pDealItem:GetID();
 				
 				if (type == DealItemTypes.CITIES) then
-					local pCity = player:GetCities():FindID(pDealItem:GetValueType());
+					local pCity = player:GetCities():FindID(valueType);
 					-- Handle occupied cities
-					if pCity == nil then
-						pCity = otherPlayer:GetCities():FindID(pDealItem:GetValueType());
+					if pCity == nil or (valueName ~= GetCityData(pCity).CityName and not pCity:IsOccupied()) then --ARISTOS
+						pCity = otherPlayer:GetCities():FindID(valueType);
 					end
 
 					local icon = renderCity(pCity, player, iconList.ListStack);

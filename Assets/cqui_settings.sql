@@ -2,10 +2,21 @@
     ╔════════════════════════════════════════════════════════════════════════════════════════════╗
     ║                                   CQUI Default settings                                    ║
     ╠════════════════════════════════════════════════════════════════════════════════════════════╣
-    ║Created by LordYanaek for CQUI mod by chaorace.                                             ║
-    ║Those are the settings loaded by default by CQUI.                                           ║
-    ║You can change many of those from the in-game GUI but settings changed in this config file  ║
-    ║will persist between games (settings changed from the GUI won't affect a new game)          ║
+    ║ Created by LordYanaek for CQUI mod by chaorace.                                            ║
+    ║ These are the settings loaded by DEFAULT in CQUI.                                          ║
+    ║                                                                                            ║
+    ║ !!! Attention: Don't write your custom settings in the original copy of this file !!!      ║
+    ║                                                                                            ║
+    ║ This file is where all default settings are stored, all changes to this file are lost      ║
+    ║ whenever updating to a new CQUI version (particularly if using the Steam Workshop version).║
+    ║                                                                                            ║
+    ║ To change default settings permanently without the risk of losing them, create a           ║
+    ║ copy of this file named "cqui_settings_local.sql" and make your changes there.             ║
+    ║ The "cqui_settings_local.sql" file does not need to be a perfect copy and will work as     ║
+    ║ long as it's valid SQL.                                                                    ║
+    ║                                                                                            ║
+    ║ If you discover a broken setting, please report it at the below URL:                       ║
+    ║                     https://github.com/CQUI-Org/cqui/issues                                ║
     ╚════════════════════════════════════════════════════════════════════════════════════════════╝
 */
 
@@ -25,6 +36,7 @@ INSERT OR REPLACE INTO CQUI_Settings -- Don't touch this line!
       ("CQUI_AutoapplyBuilderLens", 1), -- Automatically activates the builder lens when selecting a builder
       ("CQUI_AutoapplyScoutLens", 1), -- Automatically activates the scout lens when selecting a scout
       ("CQUI_AutoExpandUnitActions", 1), -- Automatically reveals the secondary unit actions normally hidden inside an expando
+      ("CQUI_BlockOnCityAttack", 1), -- Block turn from ending if you have a city that can attack
       ("CQUI_ProductionQueue", 1), -- A production queue appears next to the production panel, allowing multiple constructions to be queued at once
       ("CQUI_ShowCultureGrowth", 1), -- Shows cultural growth overlay in cityview
       ("CQUI_ShowLuxuries", 1), -- Luxury resources will show in the top-bar next to strategic resources

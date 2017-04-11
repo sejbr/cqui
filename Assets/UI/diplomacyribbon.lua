@@ -43,8 +43,10 @@ local m_kLeaderIM			:table = InstanceManager:new("LeaderInstance", "LeaderContai
 local m_PartialScreenHookBar: table;	-- = ContextPtr:LookUpControl( "/InGame/PartialScreenHooks/LaunchBacking" );
 local m_LaunchBar			: table;	-- = ContextPtr:LookUpControl( "/InGame/LaunchBar/LaunchBacking" );
 
+--CQUI Members
 -- ARISTOS: Mouse over leader icon to show relations
 local m_isCTRLDown       :boolean= false;
+local CQUI_hoveringOverPortrait = false;
 
 -- ===========================================================================
 --	Cleanup leaders
@@ -69,7 +71,7 @@ end
 function OnLeaderRightClicked(ms_SelectedPlayerID : number )
 
 	local ms_LocalPlayerID:number = Game.GetLocalPlayer();
-	if ms_SelectedPlayerID == ms_LocalPlayerID then 
+	if ms_SelectedPlayerID == ms_LocalPlayerID then
 		UpdateLeaders();
 	end
 	local pPlayer = Players[ms_LocalPlayerID];
@@ -80,6 +82,22 @@ function OnLeaderRightClicked(ms_SelectedPlayerID : number )
 			DealManager.ClearWorkingDeal(DealDirection.OUTGOING, ms_LocalPlayerID, ms_SelectedPlayerID);
 		end
 		DiplomacyManager.RequestSession(ms_LocalPlayerID, ms_SelectedPlayerID, "MAKE_DEAL");
+	--ARISTOS: To make Right Click on leader go directly to peace deal
+	else
+		if (not DealManager.HasPendingDeal(ms_LocalPlayerID, ms_SelectedPlayerID)) then
+			DealManager.ClearWorkingDeal(DealDirection.OUTGOING, ms_LocalPlayerID, ms_SelectedPlayerID);
+			local pDeal = DealManager.GetWorkingDeal(DealDirection.OUTGOING, ms_LocalPlayerID, ms_SelectedPlayerID);
+			if (pDeal ~= nil) then
+				pDealItem = pDeal:AddItemOfType(DealItemTypes.AGREEMENTS, ms_LocalPlayerID);
+				if (pDealItem ~= nil) then
+					pDealItem:SetSubType(DealAgreementTypes.MAKE_PEACE);
+					pDealItem:SetLocked(true);
+				end
+				-- Validate the deal, this will make sure peace is on both sides of the deal.
+				pDeal:Validate();
+			end
+		end
+		DiplomacyManager.RequestSession(ms_LocalPlayerID, ms_SelectedPlayerID, "MAKE_DEAL");
 	end
 	LuaEvents.QuickDealModeActivate();
 end
@@ -87,6 +105,7 @@ end
 -- ===========================================================================
 -- ARISTOS: To show relationship icon of other civs on hovering mouse over a given leader
 function OnLeaderMouseOver(playerID : number )
+	CQUI_hoveringOverPortrait = true;
 	local localPlayerID:number = Game.GetLocalPlayer();
 	local playerDiplomacy = Players[playerID]:GetDiplomacy();
 	if m_isCTRLDown then
@@ -130,7 +149,10 @@ function OnLeaderMouseOver(playerID : number )
 			end
 		end
 	end
-	
+end
+
+function OnLeaderMouseExit()
+	CQUI_hoveringOverPortrait = false;
 end
 
 -- ===========================================================================
@@ -172,8 +194,9 @@ function AddLeader(iconName : string, playerID : number, isUniqueLeader: boolean
 	instance.Button:RegisterCallback( Mouse.eLClick, function() OnLeaderClicked(playerID); end );
 	instance.Button:RegisterCallback( Mouse.eRClick, function() OnLeaderRightClicked(playerID); end );
 	instance.Button:RegisterCallback( Mouse.eMouseEnter, function() OnLeaderMouseOver(playerID); end ); --ARISTOS
+	instance.Button:RegisterCallback( Mouse.eMouseExit, function() OnLeaderMouseExit(); end );
 	instance.Button:RegisterCallback( Mouse.eMClick, function() OnLeaderMouseOver(playerID); end ); --ARISTOS
-	
+
 	local bShowRelationshipIcon:boolean = false;
 	local localPlayerID:number = Game.GetLocalPlayer();
 
@@ -214,7 +237,7 @@ function AddLeader(iconName : string, playerID : number, isUniqueLeader: boolean
 			local civDesc:string = pPlayerConfig:GetCivilizationDescription();
 
 			local civData:string = GetExtendedTooltip(playerID);
-			
+
 			if GameConfiguration.IsAnyMultiplayer() and isHuman then
 				if(playerID ~= localPlayerID and not Players[localPlayerID]:GetDiplomacy():HasMet(playerID)) then
 					instance.Portrait:SetToolTipString(Locale.Lookup("LOC_DIPLOPANEL_UNMET_PLAYER") .. " (" .. pPlayerConfig:GetPlayerName() .. ")");
@@ -681,15 +704,19 @@ function OnInputHandler( pInputStruct:table )
 		if m_isCTRLDown == false then
 			m_isCTRLDown = true;
 		end
-		return true;
+		if(CQUI_hoveringOverPortrait) then
+			return true;
+		end
 	end
 	if uiMsg == MouseEvents.MButtonUp then
 		if m_isCTRLDown == true then
 			m_isCTRLDown = false;
 		end
-		return true;
+		if(CQUI_hoveringOverPortrait) then
+			return true;
+		end
 	end
-	
+
 end
 ContextPtr:SetInputHandler( OnInputHandler, true );
 --ARISTOS: End
